@@ -1,0 +1,41 @@
+<input type="file" (change)="onFileChanged($event)" title="Choose a video please" accept=".txt, .csv">
+
+<div *ngIf="initialFileData && initialFileData.length>0">
+    <h3>Първоначална информация от избрания файл</h3>
+    <table>
+        <tr>
+            <th>EmpID</th>
+            <th>ProjectID</th>
+            <th>DateFrom</th>
+            <th>DateTo</th>
+        </tr>
+        <tr *ngFor="let data of initialFileData">
+            <td>{{data[0] ? data[0] : ""}}</td>
+            <td>{{data[1] ? data[1] : ""}}</td>
+            <td>{{data[2] ? data[2] : ""}}</td>
+            <td>{{data[3] ? data[3] : ""}}</td>
+        </tr>
+    </table>
+</div>
+
+<div *ngIf="maxTogetherWorkOnProject.processed">
+    <div *ngIf="maxTogetherWorkOnProject.maxDuration >0 && maxTogetherWorkOnProject.who.length >0">
+        <h3>Служители които са работоли най-дълго заедно по проект</h3>
+        <table>
+            <tr>
+                <th>Employee ID #1</th>
+                <th>Employee ID #2</th>
+                <th>Project ID</th>
+                <th>Days worked</th>
+            </tr>
+            <tr *ngFor="let couple of maxTogetherWorkOnProject.who">
+                <td>{{couple.empID_1}}</td>
+                <td>{{couple.empID_2}}</td>
+                <td>{{couple.projectID}}</td>
+                <td>{{maxTogetherWorkOnProject.maxDuration}} дни</td>
+            </tr>
+        </table>
+    </div>
+    <p *ngIf="maxTogetherWorkOnProject.maxDuration ===0 || maxTogetherWorkOnProject.who.length ===0">Няма служители
+        които са работили заедно по проект!</p>
+</div>
