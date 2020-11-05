@@ -1,0 +1,20 @@
+<table>
+    <tr>
+        <th>Employee ID #1</th>
+        <th>Employee ID #2</th>
+        <th>Project ID</th>
+        <th>Days worked</th>
+    </tr>
+    <tr *ngFor="let proj of longPairOnProjects?.projects">
+        <td>{{longPairOnProjects?.employee1}}</td>
+        <td>{{longPairOnProjects?.employee2}}</td>
+        <td>{{proj?.project}}</td>
+        <td>{{proj?.daysInProject}} дни</td>
+    </tr>
+    <tr>
+        <th></th>
+        <th></th>
+        <th>Total:</th>
+        <th>{{longPairOnProjects?.total}}</th>
+    </tr>
+</table>

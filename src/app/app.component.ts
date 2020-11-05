@@ -6,14 +6,11 @@ import { Component, OnInit } from '@angular/core';
   styleUrls: ['./app.component.styl']
 })
 export class AppComponent implements OnInit {
+  _MS_PER_DAY: number = 1000 * 60 * 60 * 24;
   initialFileData: any = [];
   fileData: any = [];
-  maxTogetherWorkOnProject = {
-    maxDuration: 0,
-    who: [],
-    processed: false
-  }
-
+  longestWorkInTeam: Array<any> = [];
+  processed: boolean = false;
 
   ngOnInit() {
   }
@@ -53,11 +50,15 @@ export class AppComponent implements OnInit {
       if (row[3] === "null" || row[3] === "NULL")
         row[3] = (new Date()).toDateString();
     }
-
     return removeEmptyRows
   }
 
   checkDataValidity(formattedData: string[][]) {
+
+    if (formattedData.some(rd => rd.length != 4)) {
+      alert("Всеки ред от файла трябва да има 4 стойности във формат 'EmpID, ProjectID, DateFrom, DateTo'.")
+      return false
+    }
     const invalidDatefrom = formattedData.find(rd => (new Date(rd[2])).toString() === "Invalid Date");
 
     if (invalidDatefrom) {
@@ -67,75 +68,95 @@ export class AppComponent implements OnInit {
     const invalidDateТо = formattedData.find(rd => (new Date(rd[3])).toString() === "Invalid Date")
     if (invalidDateТо) {
       alert(`Стойностите в колоната DateTo могат да бъдат само валидна дата или NULL.
-       Стойността ${invalidDatefrom[3]} не отговаря на тези изисквания.`)
+       Стойността ${invalidDateТо[3]} не отговаря на тези изисквания.`)
       return false
     }
-    if (formattedData.some(rd => rd.length != 4)) {
-      alert("Всеки ред от файла трябва да има 4 стойности във формат 'EmpID, ProjectID, DateFrom, DateTo'.")
-    }
+
     return true
   }
+
   groupEmployersByDuration(): void {
+    const employeeSet = new Set();
+    for (const periodForEmpl of this.fileData)
+      employeeSet.add(periodForEmpl[0])
 
-    const projectsWithEmlpoyeeAndPeriods = {}
+    const allEmployees = Array.from(employeeSet);
 
-    for (const periodForEmpl of this.fileData) {
-      const [employee, project, dateFrom, dateTo] = periodForEmpl;
-      projectsWithEmlpoyeeAndPeriods[project] = projectsWithEmlpoyeeAndPeriods[project] || {};
-      projectsWithEmlpoyeeAndPeriods[project][employee] = projectsWithEmlpoyeeAndPeriods[project][employee] || [];
-      projectsWithEmlpoyeeAndPeriods[project][employee].push([new Date(dateFrom), new Date(dateTo)])
+    const pairs = [];
+    const projects = {};
+    for (const empl of allEmployees) {
+      if (!projects[empl.toString()])
+        projects[empl.toString()] = this.fileData.filter(projPrd => projPrd[0] === empl);
+      for (const colegue of allEmployees.filter(col => col != empl)) {
+        if (pairs.some(c => c.includes(empl) && c.includes(colegue)))
+          continue
+        pairs.push([empl, colegue])
+      }
     }
 
+    let pairDuration: number = 0;
 
-    for (const proj of Object.keys(projectsWithEmlpoyeeAndPeriods)) {
-      const processedCouples = [];
-      for (const empl of Object.keys(projectsWithEmlpoyeeAndPeriods[proj])) {
-        for (const coleaugueInProject of Object.keys(projectsWithEmlpoyeeAndPeriods[proj]).filter(c => c != empl)) {
-          if (processedCouples.some(couple => couple.includes(empl) && couple.includes(coleaugueInProject)))
-            continue
-          processedCouples.push([empl, coleaugueInProject]);
-          const timeTogether = this.getTimeTogether(projectsWithEmlpoyeeAndPeriods[proj][empl], projectsWithEmlpoyeeAndPeriods[proj][coleaugueInProject]);
-          if (timeTogether > 0 && timeTogether > this.maxTogetherWorkOnProject.maxDuration) {
-            this.maxTogetherWorkOnProject.maxDuration = timeTogether;
-            this.maxTogetherWorkOnProject.who = [
-              {
-                empID_1: empl,
-                empID_2: coleaugueInProject,
-                projectID: proj
-              }
-            ]
-          } else if (timeTogether > 0 && timeTogether === this.maxTogetherWorkOnProject.maxDuration) {
-            this.maxTogetherWorkOnProject.who.push({
-              empID_1: empl,
-              empID_2: coleaugueInProject,
-              projectID: proj
-            })
+    for (const pair of pairs) {
+
+      let coupleInTeams = {
+        employee1: pair[0],
+        employee2: pair[1],
+        projects: [],
+        total: 0
+      }
+
+      for (const emplprojPeriod of projects[pair[0].toString()])
+        for (const clgueprojPeriod of projects[pair[1].toString()]) {
+          const togetherWorkOnProject = this.checkTogetherWorkOnProject(emplprojPeriod, clgueprojPeriod);
+          if (togetherWorkOnProject) {
+            const projIndex = coupleInTeams.projects.findIndex(proj => proj.project === togetherWorkOnProject.project)
+            if (projIndex >= 0)
+              coupleInTeams.projects[projIndex].daysInProject += togetherWorkOnProject.daysInProject
+            else
+              coupleInTeams.projects.push({
+                project: togetherWorkOnProject.project,
+                daysInProject: togetherWorkOnProject.daysInProject
+              })
+            coupleInTeams.total += togetherWorkOnProject.daysInProject;
           }
+
         }
-      }
+      if (coupleInTeams.total && coupleInTeams.total > pairDuration) {
+        this.longestWorkInTeam = [coupleInTeams];
+        pairDuration = coupleInTeams.total
+      } else if (coupleInTeams.total && coupleInTeams.total === pairDuration)
+        this.longestWorkInTeam.push(coupleInTeams)
     }
-    this.maxTogetherWorkOnProject.processed = true;
+    this.processed = true;
   }
-  getTimeTogether(emplProjectPeriods: Array<any>, colegueProjectPeriods: Array<any>) {
-    const _MS_PER_DAY = 1000 * 60 * 60 * 24;
-    let togetherDaysInProject = 0;
-    for (const emplPrd of emplProjectPeriods) {
-      for (const coleguePrd of colegueProjectPeriods) {
-        const prdStart = new Date(Math.max(emplPrd[0].getTime(), coleguePrd[0].getTime()));
-        const prdEnd = new Date(Math.min(emplPrd[1].getTime(), coleguePrd[1].getTime()));
-        togetherDaysInProject = togetherDaysInProject + Math.max((prdEnd.getTime() - prdStart.getTime()) / _MS_PER_DAY, 0);
+
+  checkTogetherWorkOnProject(emplprojPeriod: any[], clgueprojPeriod: any[]) {
+    if (emplprojPeriod[1] != clgueprojPeriod[1])
+      return null
+    const prdStart = new Date(Math.max((new Date(emplprojPeriod[2])).getTime(), (new Date(clgueprojPeriod[2])).getTime()));
+    const prdEnd = new Date(Math.min((new Date(emplprojPeriod[3])).getTime(), (new Date(clgueprojPeriod[3])).getTime()));
+    const togetherWorkOnProject = Math.max((prdEnd.getTime() - prdStart.getTime()) / this._MS_PER_DAY, 0);
+    if (togetherWorkOnProject) {
+      return {
+        project: emplprojPeriod[1],
+        daysInProject: Math.round(togetherWorkOnProject)
       }
-    }
-    return Math.round(togetherDaysInProject)
+    } else
+      return null
   }
 
   logResultInConsole() {
-    if (this.maxTogetherWorkOnProject.maxDuration > 0 && this.maxTogetherWorkOnProject.who.length > 0) {
+    if (this.longestWorkInTeam.length > 0) {
       console.log("Employee ID #1", " ", "Employee ID #2", " ", "Project ID", " ", "Days worked");
       console.log("");
-      for (const couple of this.maxTogetherWorkOnProject.who)
-        console.log(couple.empID_1, " ", couple.empID_2, " ", couple.projectID, " ", this.maxTogetherWorkOnProject.maxDuration)
+      for (const pairOnProject of this.longestWorkInTeam)
+        for (const project of pairOnProject.projects)
+          console.log(`${pairOnProject.employee1}   ${pairOnProject.employee2}  ${project.project}   ${project.daysInProject}`)
     }
+    else
+      console.log(">Няма служители които са работили заедно по проекти!")
   }
 }
+
+
 
